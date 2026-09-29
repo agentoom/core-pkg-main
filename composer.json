@@ -1,0 +1,43 @@
+{
+    "name": "agentoom/core-main",
+    "description": "Agentoom Core package",
+    "type": "library",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Agentoom\\Core\\": "src/",
+            "Database\\Factories\\": "database/factories/",
+            "Database\\Seeders\\": "database/seeders/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Agentoom\\Core\\Tests\\": "tests/"
+        }
+    },
+    "require": {
+        "php": "^8.2",
+        "google/apiclient": "^2.15",
+        "laravel/framework": "^13.0",
+        "laravel/ai": "^0.7.0",
+        "laravel/fortify": "^1.36",
+        "laravel/scout": "^11.0",
+        "laravel/socialite": "^5.26",
+        "league/commonmark": "^2.8",
+        "livewire/flux": "^2.13",
+        "livewire/livewire": "^4.2",
+        "phpoffice/phpspreadsheet": "^2.3",
+        "phpoffice/phpword": "^1.4",
+        "phpseclib/phpseclib": "^3.0",
+        "smalot/pdfparser": "^2.12",
+        "spatie/laravel-permission": "^7.2",
+        "typesense/typesense-php": "^6.0"
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Agentoom\\Core\\AgentoomCoreServiceProvider"
+            ]
+        }
+    }
+}

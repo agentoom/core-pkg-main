@@ -1,0 +1,174 @@
+@theme {
+    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+        'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-inter: 'Inter', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+        'Segoe UI Symbol', 'Noto Color Emoji';
+}
+/* Re-assign Flux's gray of choice... */
+@theme {
+    --color-zinc-50: var(--color-mist-50);
+    --color-zinc-100: var(--color-mist-100);
+    --color-zinc-200: var(--color-mist-200);
+    --color-zinc-300: var(--color-mist-300);
+    --color-zinc-400: var(--color-mist-400);
+    --color-zinc-500: var(--color-mist-500);
+    --color-zinc-600: var(--color-mist-600);
+    --color-zinc-700: var(--color-mist-700);
+    --color-zinc-800: var(--color-mist-800);
+    --color-zinc-900: var(--color-mist-900);
+    --color-zinc-950: var(--color-mist-950);
+
+    --color-cyan-neon: #00fbff;
+
+    --animate-glow: glow 2s ease-in-out infinite alternate;
+
+    @keyframes glow {
+        from {
+            text-shadow: 0 0 4px var(--color-indigo-400), 0 0 10px var(--color-indigo-400);
+        }
+        to {
+            text-shadow: 0 0 8px var(--color-fuchsia-400), 0 0 20px var(--color-fuchsia-400);
+        }
+    }
+}
+
+@theme {
+    --color-accent: var(--color-cyan-600);
+    --color-accent-content: var(--color-cyan-600);
+    --color-accent-foreground: var(--color-white);
+}
+
+@layer theme {
+    .dark {
+        --color-accent: var(--color-cyan-600);
+        --color-accent-content: var(--color-cyan-400);
+        --color-accent-foreground: var(--color-white);
+    }
+}
+
+@keyframes typingAnimation {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+    30%            { transform: translateY(-6px); opacity: 1; }
+}
+
+/* Basic Markdown Styling (Prose Fallback) */
+@layer base {
+    .prose, .prose-sm {
+        max-width: none;
+        line-height: 1.6;
+    }
+    .prose p, .prose-sm p {
+        margin-top: 0.75em;
+        margin-bottom: 0.75em;
+        line-height: 1.625; /* leading-relaxed */
+    }
+    .prose p:first-child, .prose-sm p:first-child {
+        margin-top: 0;
+    }
+    .prose p:last-child, .prose-sm p:last-child {
+        margin-bottom: 0;
+    }
+    .prose h1, .prose h2, .prose h3, .prose h4,
+    .prose-sm h1, .prose-sm h2, .prose-sm h3, .prose-sm h4 {
+        font-weight: 700;
+        margin-top: 1.25em;
+        margin-bottom: 0.5em;
+        line-height: 1.2;
+        color: var(--color-zinc-900);
+    }
+    .dark .prose h1, .dark .prose h2, .dark .prose h3, .dark .prose h4,
+    .dark .prose-sm h1, .dark .prose-sm h2, .dark .prose-sm h3, .dark .prose-sm h4 {
+        color: var(--color-zinc-100);
+    }
+    .prose h1 { font-size: 1.5em; }
+    .prose h2 { font-size: 1.25em; }
+    .prose h3 { font-size: 1.125em; }
+
+    .prose-sm h1 { font-size: 1.25em; }
+    .prose-sm h2 { font-size: 1.125em; }
+    .prose-sm h3 { font-size: 1em; }
+
+    .prose ul, .prose-sm ul {
+        list-style-type: disc;
+        margin-top: 0.75em;
+        margin-bottom: 0.75em;
+        padding-left: 1.25em;
+    }
+    .prose ol, .prose-sm ol {
+        list-style-type: decimal;
+        margin-top: 0.75em;
+        margin-bottom: 0.75em;
+        padding-left: 1.25em;
+    }
+    .prose li, .prose-sm li {
+        margin-top: 0.25em;
+        margin-bottom: 0.25em;
+    }
+    .prose li > p, .prose-sm li > p {
+        margin-top: 0.375em;
+        margin-bottom: 0.375em;
+    }
+    .prose pre, .prose-sm pre {
+        background-color: var(--color-zinc-950);
+        color: var(--color-zinc-200);
+        padding: 0.75em 1em;
+        border-radius: 0.5rem;
+        overflow-x: auto;
+        margin-top: 1em;
+        margin-bottom: 1em;
+        font-size: 0.8125em;
+        border: 1px solid var(--color-zinc-800);
+    }
+    .prose code, .prose-sm code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        font-size: 0.875em;
+        background-color: var(--color-zinc-100);
+        color: var(--color-fuchsia-600);
+        padding: 0.125em 0.25em;
+        border-radius: 0.25rem;
+    }
+    .dark .prose code, .dark .prose-sm code {
+        background-color: var(--color-zinc-800);
+        color: var(--color-fuchsia-400);
+    }
+    .prose pre code, .prose-sm pre code {
+        background-color: transparent;
+        padding: 0;
+        border-radius: 0;
+        color: inherit;
+        font-size: inherit;
+    }
+    .prose hr, .prose-sm hr {
+        margin: 2em 0;
+        border: 0;
+        border-top: 1px solid var(--color-zinc-200);
+    }
+    .dark .prose hr, .dark .prose-sm hr {
+        border-top-color: var(--color-zinc-800);
+    }
+}
+
+/* Deanonymized PII styling — text that was restored after LLM processing.
+   Highlighted with an underline and amber background so users know this
+   information was never exposed to the LLM. */
+.deanonymized-pii {
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    text-underline-offset: 3px;
+    cursor: help;
+}
+.dark .deanonymized-pii {
+    background-color: rgba(245, 158, 11, 0.12);
+    text-decoration-color: var(--color-amber-400);
+}
+.deanonymized-pii {
+    background-color: rgba(245, 158, 11, 0.08);
+    text-decoration-color: var(--color-amber-500);
+}
+/* Override the dotted background for code blocks */
+.prose code.deanonymized-pii,
+.prose-sm code.deanonymized-pii {
+    background-color: rgba(245, 158, 11, 0.2);
+    text-decoration: underline;
+    text-decoration-style: dotted;
+}
