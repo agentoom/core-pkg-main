@@ -70,7 +70,7 @@
 
         {{-- Step 1: Provider Setup --}}
         @if ($step === 1)
-            <form wire:submit="saveProvider" class="space-y-4">
+            <form wire:submit="saveProvider" class="space-y-4" autocomplete="off" data-bwignore="true">
                 <flux:select
                     variant="listbox"
                     wire:model.live="providerName"
@@ -91,6 +91,10 @@
                     type="password"
                     icon="key"
                     viewable
+                    autocomplete="off"
+                    data-bwignore="true"
+                    data-1p-ignore
+                    data-lpignore="true"
                 />
                 @if ($providerName === 'custom')
                     <flux:input
@@ -293,7 +297,7 @@
 
         {{-- Optional: Email/SMTP --}}
         @elseif ($step === 5)
-            <form wire:submit="saveEmailSettings" class="space-y-4">
+            <form wire:submit="saveEmailSettings" class="space-y-4" autocomplete="off" data-bwignore="true">
                 <flux:card class="space-y-3">
                     <flux:heading size="sm">{{ __('agentoom-core::admin.onboarding.smtp_settings') }}</flux:heading>
 
@@ -303,6 +307,10 @@
                             label="{{ __('agentoom-core::admin.onboarding.smtp_host') }}"
                             placeholder="smtp.example.com"
                             icon="server"
+                            autocomplete="off"
+                            data-bwignore="true"
+                            data-1p-ignore
+                            data-lpignore="true"
                         />
                         <flux:input
                             wire:model="mailPort"
@@ -317,6 +325,10 @@
                             wire:model="mailUsername"
                             label="{{ __('agentoom-core::admin.onboarding.smtp_username') }}"
                             icon="user"
+                            autocomplete="off"
+                            data-bwignore="true"
+                            data-1p-ignore
+                            data-lpignore="true"
                         />
                         <flux:input
                             wire:model="mailPassword"
@@ -324,6 +336,10 @@
                             type="password"
                             icon="key"
                             viewable
+                            autocomplete="off"
+                            data-bwignore="true"
+                            data-1p-ignore
+                            data-lpignore="true"
                         />
                     </div>
 

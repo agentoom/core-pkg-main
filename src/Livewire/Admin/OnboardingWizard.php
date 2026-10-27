@@ -8,6 +8,7 @@ use Agentoom\Core\Models\Configuration;
 use Agentoom\Core\Models\Language;
 use Agentoom\Core\Models\Provider;
 use Agentoom\Core\Models\ProviderModel;
+use Agentoom\Core\Services\ProviderModelSyncService;
 use Illuminate\Validation\Rule;
 use Laravel\Ai\Enums\Lab;
 use Livewire\Component;

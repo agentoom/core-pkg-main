@@ -18,14 +18,14 @@
 
     {{-- Card --}}
     <flux:card>
-        <form wire:submit="save" class="space-y-6">
+        <form wire:submit="save" class="space-y-6" autocomplete="off" data-bwignore="true">
             <div class="grid grid-cols-1 gap-4">
                 <flux:select wire:model="name" label="{{ __('agentoom-core::admin.providers.name') }}" placeholder="{{ __('agentoom-core::admin.providers.name_placeholder') }}" :disabled="$is_editing">
                     @foreach ($availableProviders as $value => $label)
                         <flux:select.option value="{{ $value }}">{{ $label }}</flux:select.option>
                     @endforeach
                 </flux:select>
-                <flux:input wire:model="api_key" label="{{ __('agentoom-core::admin.providers.api_key') }}" placeholder="{{ __('agentoom-core::admin.providers.api_key') }}" type="password" viewable />
+                <flux:input wire:model="api_key" label="{{ __('agentoom-core::admin.providers.api_key') }}" placeholder="{{ __('agentoom-core::admin.providers.api_key') }}" type="password" viewable autocomplete="off" data-bwignore="true" data-1p-ignore data-lpignore="true" />
                 <flux:input wire:model="url" label="{{ __('agentoom-core::admin.providers.url') }}" placeholder="{{ __('agentoom-core::admin.providers.url_placeholder') }}" />
                 <flux:text>{{ __('agentoom-core::admin.providers.url_help') }}</flux:text>
                 @if ($name === 'custom')

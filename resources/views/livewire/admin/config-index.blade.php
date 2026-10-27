@@ -85,7 +85,11 @@
                             label="{{ __('agentoom-core::admin.configs.api_key') }}"
                             placeholder="{{ __('agentoom-core::admin.configs.api_key_placeholder') }}"
                             viewable
-                            icon="key" />
+                            icon="key"
+                            autocomplete="off"
+                            data-bwignore="true"
+                            data-1p-ignore
+                            data-lpignore="true" />
                     </div>
 
                     @php
