@@ -563,6 +563,37 @@ class OnboardingWizard extends Component
     }
 
     /**
+     * Get transcription-capable models for the provider.
+     * Matches audio input modality and audio/transcription model naming,
+     * falling back to all synced models if none specifically match.
+     *
+     * @return Collection
+     */
+    public function getTranscriptionModels()
+    {
+        if (! $this->providerId) {
+            return collect();
+        }
+
+        $audioModels = ProviderModel::query()
+            ->where('provider_id', $this->providerId)
+            ->where('is_active', true)
+            ->where(function ($query) {
+                $query->where('model_features->architecture->input_modalities', 'like', '%"audio"%')
+                    ->orWhere('model_features->architecture->modality', 'like', '%audio%')
+                    ->orWhere('model_name', 'like', '%whisper%')
+                    ->orWhere('model_name', 'like', '%transcrib%')
+                    ->orWhere('model_name', 'like', '%audio%')
+                    ->orWhere('model_name', 'like', '%speech%')
+                    ->orWhere('model_name', 'like', '%voxtral%');
+            })
+            ->orderBy('model_name')
+            ->get();
+
+        return $audioModels->isNotEmpty() ? $audioModels : $this->getSyncedModels();
+    }
+
+    /**
      * Build a summary of the onboarding configuration for the review step.
      *
      * @return array<int, array{label: string, value: string, status: string}>
@@ -662,17 +693,10 @@ class OnboardingWizard extends Component
 
     public function render(): mixed
     {
-        $transcriptionModels = ProviderModel::query()
-            ->where('provider_id', $this->providerId)
-            ->where('is_active', true)
-            ->where('model_features->architecture->output_modalities', 'like', '%"transcription"%')
-            ->orderBy('model_name')
-            ->get();
-
         return view('agentoom-core::livewire.admin.onboarding-wizard', [
             'providerOptions' => $this->getProviderOptions(),
             'syncedModels' => $this->getSyncedModels(),
-            'transcriptionModels' => $transcriptionModels,
+            'transcriptionModels' => $this->getTranscriptionModels(),
             'summary' => $this->getSummary(),
             'stepsList' => $this->steps(),
             'systemAgents' => Agent::where('system_agent', true)->whereNull('project_id')->get(),

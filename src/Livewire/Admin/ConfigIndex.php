@@ -519,7 +519,19 @@ class ConfigIndex extends Component
             : Provider::where('name', $providerId)->first();
 
         if ($provider && $provider->name === 'openrouter' && $modality && $modality !== 'all') {
-            $query->where('model_features->architecture->output_modalities', 'like', '%"'.$modality.'"%');
+            if ($modality === 'transcription') {
+                $query->where(function ($q) {
+                    $q->where('model_features->architecture->input_modalities', 'like', '%"audio"%')
+                        ->orWhere('model_features->architecture->modality', 'like', '%audio%')
+                        ->orWhere('model_name', 'like', '%whisper%')
+                        ->orWhere('model_name', 'like', '%transcrib%')
+                        ->orWhere('model_name', 'like', '%audio%')
+                        ->orWhere('model_name', 'like', '%speech%')
+                        ->orWhere('model_name', 'like', '%voxtral%');
+                });
+            } else {
+                $query->where('model_features->architecture->output_modalities', 'like', '%"'.$modality.'"%');
+            }
         }
 
         return $query->pluck('model_name', 'id');
