@@ -11,6 +11,7 @@ use Agentoom\Core\Helpers\Helpers;
 use Agentoom\Core\Contracts\HumanIntervention;
 use Agentoom\Core\Models\Agent;
 use Agentoom\Core\Models\AgentSkill;
+use Agentoom\Core\Models\AgentVersion;
 use Agentoom\Core\Models\AiModelPricing;
 use Agentoom\Core\Models\Configuration;
 use Agentoom\Core\Models\Project;
@@ -70,6 +71,12 @@ class AgentCreateEdit extends Component
     public bool $is_editing = false;
 
     public string $version_change_description = '';
+
+    public bool $show_version_history_modal = false;
+
+    public ?array $selected_version_data = null;
+
+    public array $selected_version_diff = [];
 
     public int $allow_human_intervention = 0;
 
@@ -818,6 +825,114 @@ class AgentCreateEdit extends Component
     public function projects()
     {
         return Project::orderBy('name')->get();
+    }
+
+    #[Computed]
+    public function versions()
+    {
+        if (! $this->agent) {
+            return collect();
+        }
+
+        return $this->agent->versions()->with('createdBy')->get();
+    }
+
+    #[Computed]
+    public function latestVersionNumber(): int
+    {
+        if (! $this->agent) {
+            return 1;
+        }
+
+        return (int) ($this->agent->versions()->max('version_number') ?? 1);
+    }
+
+    public function openVersionHistory(): void
+    {
+        if (! $this->agent) {
+            return;
+        }
+
+        if ($this->agent->versions()->count() === 0) {
+            app(AgentVersionService::class)->createVersion($this->agent, 'Initial snapshot');
+            $this->agent->unsetRelation('versions');
+        }
+
+        $this->selected_version_data = null;
+        $this->selected_version_diff = [];
+        $this->show_version_history_modal = true;
+    }
+
+    public function inspectVersion(int $versionId): void
+    {
+        if (! $this->agent) {
+            return;
+        }
+
+        /** @var \Agentoom\Core\Models\AgentVersion $version */
+        $version = $this->agent->versions()->with('createdBy')->findOrFail($versionId);
+        $latestVersion = $this->agent->versions()->first();
+
+        $diff = [];
+        if ($latestVersion && $latestVersion->id !== $version->id) {
+            $diff = app(AgentVersionService::class)->diff($version, $latestVersion);
+        }
+
+        $toolIds = $version->snapshot['tool_ids'] ?? [];
+        $toolNames = ! empty($toolIds) ? Tool::whereIn('id', $toolIds)->pluck('name')->toArray() : [];
+
+        $skillIds = $version->snapshot['skill_ids'] ?? [];
+        $skillNames = ! empty($skillIds) ? AgentSkill::whereIn('id', $skillIds)->pluck('name')->toArray() : [];
+
+        $this->selected_version_data = [
+            'id' => $version->id,
+            'version_number' => $version->version_number,
+            'change_description' => $version->change_description,
+            'created_at' => $version->created_at?->format('M d, Y H:i:s'),
+            'created_at_relative' => $version->created_at?->diffForHumans(),
+            'created_by_name' => $version->createdBy?->name ?? $version->createdBy?->email ?? 'System',
+            'is_latest' => $latestVersion && $latestVersion->id === $version->id,
+            'snapshot' => $version->snapshot,
+            'tool_names' => $toolNames,
+            'skill_names' => $skillNames,
+        ];
+
+        $this->selected_version_diff = $diff;
+    }
+
+    public function backToVersionList(): void
+    {
+        $this->selected_version_data = null;
+        $this->selected_version_diff = [];
+    }
+
+    public function restoreVersion(int $versionId): void
+    {
+        if (! $this->agent) {
+            return;
+        }
+
+        /** @var \Agentoom\Core\Models\AgentVersion $version */
+        $version = $this->agent->versions()->findOrFail($versionId);
+        $service = app(AgentVersionService::class);
+
+        // Restore agent in database
+        $restoredAgent = $service->restoreVersion($version);
+
+        // Record an immutable audit snapshot for the rollback
+        $service->createVersion(
+            $restoredAgent,
+            "Rolled back to Version {$version->version_number}"
+        );
+
+        $this->agent = $restoredAgent->fresh();
+        $this->mount($this->agent);
+
+        $this->show_version_history_modal = false;
+        $this->selected_version_data = null;
+        $this->selected_version_diff = [];
+
+        session()->flash('success', __('agentoom-core::admin.agents.version_restored_success', ['version' => $version->version_number]));
     }
 
     public function render()

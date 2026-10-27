@@ -7,13 +7,26 @@
         requestAnimationFrame(() => requestAnimationFrame(resetScroll));
     "
 >
-    <div>
-        <flux:heading size="xl">
-            {{ $is_editing ? __('agentoom-core::admin.agents.edit') : __('agentoom-core::admin.agents.new') }}
-        </flux:heading>
-        <flux:subheading>
-            {{ $is_editing ? __('agentoom-core::admin.agents.edit_subtitle') : __('agentoom-core::admin.agents.create_subtitle') }}
-        </flux:subheading>
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <flux:heading size="xl">
+                {{ $is_editing ? __('agentoom-core::admin.agents.edit') : __('agentoom-core::admin.agents.new') }}
+            </flux:heading>
+            <flux:subheading>
+                {{ $is_editing ? __('agentoom-core::admin.agents.edit_subtitle') : __('agentoom-core::admin.agents.create_subtitle') }}
+            </flux:subheading>
+        </div>
+
+        @if($is_editing && $agent)
+            <div class="flex items-center gap-2">
+                <flux:button type="button" wire:click="openVersionHistory" icon="clock" variant="subtle">
+                    {{ __('agentoom-core::admin.agents.version_history') }}
+                    <span class="ml-1.5 px-1.5 py-0.5 text-xs font-semibold rounded bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">
+                        v{{ $this->latestVersionNumber }}
+                    </span>
+                </flux:button>
+            </div>
+        @endif
     </div>
 
     <flux:card>
@@ -632,9 +645,16 @@
                 </flux:tab.panel>
             </flux:tab.group>
 
-            <div class="flex gap-2 justify-end">
+            @if($is_editing)
+                <div class="pt-2">
+                    <flux:input wire:model="version_change_description" size="sm" placeholder="{{ __('agentoom-core::admin.agents.version_change_description_placeholder') }}" label="{{ __('agentoom-core::admin.agents.version_change_description_label') }}" />
+                </div>
+            @endif
+
+            <div class="flex gap-2 justify-end items-center flex-wrap">
                 <flux:button type="button" href="{{ route('admin.agents.index') }}">{{ __('agentoom-core::admin.common.cancel') }}</flux:button>
                 @if($is_editing)
+                    <flux:button type="button" variant="subtle" icon="clock" wire:click="openVersionHistory">{{ __('agentoom-core::admin.agents.version_history') }}</flux:button>
                     <flux:button type="button" variant="subtle" icon="document-duplicate" wire:click="clone">{{ __('agentoom-core::admin.common.clone') }}</flux:button>
                 @endif
                 <flux:button type="button" variant="subtle" wire:click="save(true)">{{ __('agentoom-core::admin.common.save_and_stay') }}</flux:button>
@@ -660,9 +680,201 @@
             </div>
 
             <div class="flex justify-end">
-                                    <flux:button variant="subtle"
-                        x-on:click="$el.closest('dialog').close()">{{ __('agentoom-core::admin.common.close') }}</flux:button>
+                <flux:button variant="subtle"
+                    x-on:click="$el.closest('dialog').close()">{{ __('agentoom-core::admin.common.close') }}</flux:button>
             </div>
+        </div>
+    </flux:modal>
+
+    {{-- Version History & Rollback Modal --}}
+    <flux:modal wire:model="show_version_history_modal" variant="large" class="max-w-4xl space-y-6">
+        <div class="space-y-4">
+            <div class="flex items-center justify-between pb-3 border-b border-zinc-200 dark:border-zinc-800">
+                <div>
+                    <flux:heading size="lg">
+                        {{ __('agentoom-core::admin.agents.version_history') }}
+                    </flux:heading>
+                    <flux:subheading>
+                        {{ __('agentoom-core::admin.agents.version_history_subtitle') }}
+                    </flux:subheading>
+                </div>
+                @if($this->versions->isNotEmpty())
+                    <flux:badge size="sm" color="zinc">
+                        {{ $this->versions->count() }} {{ \Illuminate\Support\Str::plural('Snapshot', $this->versions->count()) }}
+                    </flux:badge>
+                @endif
+            </div>
+
+            @if($selected_version_data)
+                {{-- Detail / Diff View --}}
+                <div class="space-y-4">
+                    <div class="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900 p-3 rounded-xl border border-zinc-200 dark:border-zinc-800">
+                        <div class="flex items-center gap-2">
+                            <flux:button size="xs" variant="subtle" icon="arrow-left" wire:click="backToVersionList">
+                                {{ __('agentoom-core::admin.agents.version_back_to_list') }}
+                            </flux:button>
+                            <span class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                                Version {{ $selected_version_data['version_number'] }}
+                            </span>
+                            @if($selected_version_data['is_latest'])
+                                <flux:badge size="sm" color="lime" variant="pill">Current / Latest</flux:badge>
+                            @endif
+                        </div>
+                        <div class="text-xs text-zinc-500">
+                            {{ $selected_version_data['created_at'] }} ({{ $selected_version_data['created_at_relative'] }}) by {{ $selected_version_data['created_by_name'] }}
+                        </div>
+                    </div>
+
+                    @if(!empty($selected_version_data['change_description']))
+                        <div class="p-3 bg-zinc-100 dark:bg-zinc-800/60 rounded-lg text-sm text-zinc-700 dark:text-zinc-300">
+                            <span class="font-medium text-zinc-900 dark:text-zinc-100">Notes:</span> {{ $selected_version_data['change_description'] }}
+                        </div>
+                    @endif
+
+                    {{-- Diff Section --}}
+                    @if(!empty($selected_version_diff))
+                        <div class="space-y-3">
+                            <flux:heading size="sm" class="text-zinc-900 dark:text-zinc-100">
+                                {{ __('agentoom-core::admin.agents.version_diff_title') }}
+                            </flux:heading>
+                            <div class="space-y-2 max-h-[40vh] overflow-y-auto pr-1">
+                                @foreach($selected_version_diff as $field => $change)
+                                    <div class="p-3 bg-zinc-50 dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 text-xs font-mono space-y-1">
+                                        <div class="font-bold text-zinc-700 dark:text-zinc-300 uppercase tracking-wider text-[11px]">
+                                            Field: {{ $field }}
+                                        </div>
+                                        @if(is_array($change['old'] ?? null) || is_array($change['new'] ?? null))
+                                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mt-1">
+                                                <div class="p-2 bg-red-500/10 border border-red-500/20 rounded text-red-700 dark:text-red-400">
+                                                    <span class="font-bold block text-[10px] uppercase">This Version:</span>
+                                                    <pre class="whitespace-pre-wrap mt-1 text-[11px]">{{ json_encode($change['old'] ?? $change['removed'] ?? [], JSON_PRETTY_PRINT) }}</pre>
+                                                </div>
+                                                <div class="p-2 bg-emerald-500/10 border border-emerald-500/20 rounded text-emerald-700 dark:text-emerald-400">
+                                                    <span class="font-bold block text-[10px] uppercase">Current Saved:</span>
+                                                    <pre class="whitespace-pre-wrap mt-1 text-[11px]">{{ json_encode($change['new'] ?? $change['added'] ?? [], JSON_PRETTY_PRINT) }}</pre>
+                                                </div>
+                                            </div>
+                                        @else
+                                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mt-1">
+                                                <div class="p-2 bg-red-500/10 border border-red-500/20 rounded text-red-700 dark:text-red-400">
+                                                    <span class="font-bold block text-[10px] uppercase">This Version:</span>
+                                                    <div class="whitespace-pre-wrap mt-1 text-[11px] max-h-32 overflow-y-auto">{{ $change['old'] ?? '(empty)' }}</div>
+                                                </div>
+                                                <div class="p-2 bg-emerald-500/10 border border-emerald-500/20 rounded text-emerald-700 dark:text-emerald-400">
+                                                    <span class="font-bold block text-[10px] uppercase">Current Saved:</span>
+                                                    <div class="whitespace-pre-wrap mt-1 text-[11px] max-h-32 overflow-y-auto">{{ $change['new'] ?? '(empty)' }}</div>
+                                                </div>
+                                            </div>
+                                        @endif
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+                    @else
+                        {{-- Full Snapshot Preview --}}
+                        <div class="space-y-3">
+                            <flux:heading size="sm" class="text-zinc-900 dark:text-zinc-100">
+                                {{ __('agentoom-core::admin.agents.version_snapshot_preview') }}
+                            </flux:heading>
+                            <div class="p-4 bg-zinc-100 dark:bg-zinc-900 rounded-lg overflow-y-auto max-h-[40vh] space-y-3 text-xs">
+                                <div>
+                                    <span class="font-bold text-zinc-500 uppercase tracking-wider text-[10px] block">Role:</span>
+                                    <p class="text-zinc-800 dark:text-zinc-200 mt-0.5">{{ $selected_version_data['snapshot']['role'] ?? '(None)' }}</p>
+                                </div>
+                                <div>
+                                    <span class="font-bold text-zinc-500 uppercase tracking-wider text-[10px] block">Objective:</span>
+                                    <p class="text-zinc-800 dark:text-zinc-200 mt-0.5">{{ $selected_version_data['snapshot']['objective'] ?? '(None)' }}</p>
+                                </div>
+                                <div>
+                                    <span class="font-bold text-zinc-500 uppercase tracking-wider text-[10px] block">System Instructions:</span>
+                                    <pre class="whitespace-pre-wrap font-mono text-zinc-800 dark:text-zinc-200 mt-0.5 bg-zinc-200/50 dark:bg-zinc-950 p-2 rounded">{{ $selected_version_data['snapshot']['instructions'] ?? '(None)' }}</pre>
+                                </div>
+                                @if(!empty($selected_version_data['tool_names']))
+                                    <div>
+                                        <span class="font-bold text-zinc-500 uppercase tracking-wider text-[10px] block">Tools:</span>
+                                        <div class="flex flex-wrap gap-1 mt-1">
+                                            @foreach($selected_version_data['tool_names'] as $tName)
+                                                <flux:badge size="xs" color="cyan">{{ $tName }}</flux:badge>
+                                            @endforeach
+                                        </div>
+                                    </div>
+                                @endif
+                            </div>
+                        </div>
+                    @endif
+
+                    <div class="flex items-center justify-between pt-3 border-t border-zinc-200 dark:border-zinc-800">
+                        <flux:button variant="subtle" size="sm" wire:click="backToVersionList">
+                            {{ __('agentoom-core::admin.agents.version_back_to_list') }}
+                        </flux:button>
+                        <flux:button variant="primary" icon="arrow-uturn-left"
+                            wire:click="restoreVersion({{ $selected_version_data['id'] }})"
+                            wire:confirm="Are you sure you want to rollback to Version {{ $selected_version_data['version_number'] }}? Current configuration will be replaced with this snapshot.">
+                            {{ $selected_version_data['is_latest'] ? __('agentoom-core::admin.agents.version_revert_latest') : __('agentoom-core::admin.agents.version_restore') }}
+                        </flux:button>
+                    </div>
+                </div>
+            @else
+                {{-- Versions List --}}
+                @if($this->versions->isEmpty())
+                    <div class="p-8 text-center text-zinc-500 dark:text-zinc-400">
+                        {{ __('agentoom-core::admin.agents.version_no_versions') }}
+                    </div>
+                @else
+                    <div class="divide-y divide-zinc-200 dark:divide-zinc-800 overflow-y-auto max-h-[60vh] -mx-4 px-4">
+                        @foreach($this->versions as $index => $v)
+                            <div class="py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 hover:bg-zinc-50 dark:hover:bg-zinc-900/50 p-3 rounded-lg transition-colors">
+                                <div class="space-y-1">
+                                    <div class="flex items-center gap-2 flex-wrap">
+                                        <flux:badge size="sm" :color="$index === 0 ? 'cyan' : 'zinc'">
+                                            v{{ $v->version_number }}
+                                        </flux:badge>
+                                        @if($index === 0)
+                                            <flux:badge size="sm" color="lime" variant="pill">Current / Latest</flux:badge>
+                                        @endif
+                                        <span class="text-xs text-zinc-500 dark:text-zinc-400">
+                                            {{ $v->created_at?->diffForHumans() ?? 'Unknown date' }}
+                                        </span>
+                                        @if($v->createdBy)
+                                            <span class="text-xs text-zinc-400 dark:text-zinc-500">
+                                                &bull; by {{ $v->createdBy->name ?? $v->createdBy->email }}
+                                            </span>
+                                        @endif
+                                    </div>
+                                    <p class="text-sm text-zinc-700 dark:text-zinc-300">
+                                        {{ $v->change_description ?: 'Automatic snapshot on save' }}
+                                    </p>
+                                </div>
+
+                                <div class="flex items-center gap-2 shrink-0">
+                                    <flux:button size="xs" variant="subtle" icon="eye" wire:click="inspectVersion({{ $v->id }})">
+                                        {{ __('agentoom-core::admin.agents.version_inspect') }}
+                                    </flux:button>
+                                    @if($index !== 0)
+                                        <flux:button size="xs" variant="primary" icon="arrow-uturn-left"
+                                            wire:click="restoreVersion({{ $v->id }})"
+                                            wire:confirm="Are you sure you want to rollback to Version {{ $v->version_number }}? Current configuration will be replaced with this snapshot.">
+                                            {{ __('agentoom-core::admin.agents.version_restore') }}
+                                        </flux:button>
+                                    @else
+                                        <flux:button size="xs" variant="subtle" icon="arrow-uturn-left"
+                                            wire:click="restoreVersion({{ $v->id }})"
+                                            wire:confirm="Revert agent to Version {{ $v->version_number }}? Any unsaved form changes will be replaced with this snapshot.">
+                                            {{ __('agentoom-core::admin.agents.version_revert_latest') }}
+                                        </flux:button>
+                                    @endif
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
+
+                <div class="flex justify-end pt-3 border-t border-zinc-200 dark:border-zinc-800">
+                    <flux:button variant="subtle" wire:click="$set('show_version_history_modal', false)">
+                        {{ __('agentoom-core::admin.common.close') }}
+                    </flux:button>
+                </div>
+            @endif
         </div>
     </flux:modal>
 </div>

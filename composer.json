@@ -1,5 +1,6 @@
 {
     "name": "agentoom/core-main",
+    "version": "0.9.0",
     "description": "Agentoom Core package",
     "type": "library",
     "license": "MIT",
