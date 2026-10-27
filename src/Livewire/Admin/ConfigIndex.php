@@ -522,6 +522,7 @@ class ConfigIndex extends Component
             if ($modality === 'transcription') {
                 $query->where(function ($q) {
                     $q->where('model_features->architecture->input_modalities', 'like', '%"audio"%')
+                        ->orWhere('model_features->architecture->output_modalities', 'like', '%"transcription"%')
                         ->orWhere('model_features->architecture->modality', 'like', '%audio%')
                         ->orWhere('model_name', 'like', '%whisper%')
                         ->orWhere('model_name', 'like', '%transcrib%')

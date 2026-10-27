@@ -580,6 +580,7 @@ class OnboardingWizard extends Component
             ->where('is_active', true)
             ->where(function ($query) {
                 $query->where('model_features->architecture->input_modalities', 'like', '%"audio"%')
+                    ->orWhere('model_features->architecture->output_modalities', 'like', '%"transcription"%')
                     ->orWhere('model_features->architecture->modality', 'like', '%audio%')
                     ->orWhere('model_name', 'like', '%whisper%')
                     ->orWhere('model_name', 'like', '%transcrib%')

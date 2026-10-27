@@ -70,7 +70,26 @@ class ProviderModelSyncService
             throw new \RuntimeException('Invalid JSON response from provider API');
         }
 
-        return $this->normalizeModelsResponse($provider, $data);
+        $models = $this->normalizeModelsResponse($provider, $data);
+
+        // For OpenRouter, also fetch dedicated transcription models (e.g. OpenAI Whisper, Voxtral, ElevenLabs)
+        $driver = $provider->driver ?: $provider->name;
+        if ($driver === 'openrouter' && ! str_contains($url, 'output_modalities')) {
+            try {
+                $transcriptionUrl = str_contains($url, '?')
+                    ? $url.'&output_modalities=transcription'
+                    : $url.'?output_modalities=transcription';
+                $transcriptionResponse = Http::timeout(15)->withHeaders($this->getHeaders($provider))->get($transcriptionUrl);
+                if ($transcriptionResponse->successful() && is_array($transcriptionResponse->json())) {
+                    $transcriptionModels = $this->normalizeModelsResponse($provider, $transcriptionResponse->json());
+                    $models = array_merge($models, $transcriptionModels);
+                }
+            } catch (\Throwable $e) {
+                Log::warning("Could not fetch OpenRouter transcription models: {$e->getMessage()}");
+            }
+        }
+
+        return $models;
     }
 
     protected function getHeaders(Provider $provider): array
@@ -105,6 +124,7 @@ class ProviderModelSyncService
 
         if ($customUrl) {
             $baseUrl = rtrim($customUrl, '/');
+
             return match ($driver) {
                 'openrouter' => $baseUrl.'/models',
                 'ollama' => $baseUrl.'/api/tags',
