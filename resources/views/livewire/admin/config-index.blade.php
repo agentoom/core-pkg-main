@@ -106,6 +106,7 @@
                                     <flux:select.option value="audio">{{ __('Audio') }}</flux:select.option>
                                     <flux:select.option value="embeddings">{{ __('Embeddings') }}</flux:select.option>
                                     <flux:select.option value="transcription">{{ __('Transcription') }}</flux:select.option>
+                                    <flux:select.option value="decisions">{{ __('Decisions') }}</flux:select.option>
                                     <flux:select.option value="speech">{{ __('Speech (TTS)') }}</flux:select.option>
                                     <flux:select.option value="rerank">{{ __('Rerank') }}</flux:select.option>
                                     <flux:select.option value="video">{{ __('Video') }}</flux:select.option>
@@ -169,6 +170,7 @@
                                 <flux:select.option value="audio">{{ __('Audio') }}</flux:select.option>
                                 <flux:select.option value="embeddings">{{ __('Embeddings') }}</flux:select.option>
                                 <flux:select.option value="transcription">{{ __('Transcription') }}</flux:select.option>
+                                <flux:select.option value="decisions">{{ __('Decisions') }}</flux:select.option>
                                 <flux:select.option value="speech">{{ __('Speech (TTS)') }}</flux:select.option>
                                 <flux:select.option value="rerank">{{ __('Rerank') }}</flux:select.option>
                                 <flux:select.option value="video">{{ __('Video') }}</flux:select.option>
@@ -189,6 +191,66 @@
                                 <flux:select.option value="{{ $id }}">{{ $name }}</flux:select.option>
                             @endforeach
                         </flux:select>
+                    </div>
+                </flux:card>
+
+                {{-- Decision Model --}}
+                <flux:card class="space-y-4">
+                    <flux:heading size="sm">{{ __('agentoom-core::admin.configs.section_decision') }}</flux:heading>
+                    <flux:subheading>{{ __('agentoom-core::admin.configs.decision_help') }}</flux:subheading>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        @if (count($providers) > 1)
+                        <flux:select
+                            wire:model.live="ai_decision_provider"
+                            searchable
+                            label="{{ __('agentoom-core::admin.configs.decision_provider') }}"
+                            icon="server">
+                            <flux:select.option value="">{{ __('agentoom-core::admin.configs.select_provider') }}</flux:select.option>
+                            @foreach($providers as $id => $name)
+                                <flux:select.option value="{{ $id }}">{{ $name }}</flux:select.option>
+                            @endforeach
+                        </flux:select>
+                        @endif
+
+                        @php
+                            $currentDecisionProviderName = isset($providers[$ai_decision_provider]) ? $providers[$ai_decision_provider] : '';
+                        @endphp
+
+                        @if ($currentDecisionProviderName === 'openrouter' && auth()->user()->hasRole('superadmin'))
+                            <flux:select wire:model.live="ai_decision_output_modality" label="{{ __('Output Modality') }}" icon="adjustments-horizontal">
+                                <flux:select.option value="decisions">{{ __('Decisions') }}</flux:select.option>
+                                <flux:select.option value="all">{{ __('All Modalities') }}</flux:select.option>
+                                <flux:select.option value="text">{{ __('Text') }}</flux:select.option>
+                            </flux:select>
+                        @endif
+
+                        <flux:select
+                            variant="listbox"
+                            wire:model.live="ai_decision_model"
+                            label="{{ __('agentoom-core::admin.configs.decision_model') }}"
+                            placeholder="{{ __('agentoom-core::admin.configs.model_placeholder') }}"
+                            searchable
+                            icon="cpu-chip"
+                            :disabled="!$ai_decision_provider"
+                        >
+                            <flux:select.option value="">{{ __('agentoom-core::admin.configs.model_placeholder') }}</flux:select.option>
+                            @foreach($decision_models as $id => $name)
+                                <flux:select.option value="{{ $id }}">{{ $name }}</flux:select.option>
+                            @endforeach
+                        </flux:select>
+
+                        <flux:field>
+                            <flux:label>{{ __('agentoom-core::admin.configs.decision_confidence_threshold') }}</flux:label>
+                            <flux:description>{{ __('agentoom-core::admin.configs.decision_confidence_threshold_help') }}</flux:description>
+                            <flux:input
+                                wire:model="ai_decision_confidence_threshold"
+                                type="number"
+                                min="0"
+                                max="1"
+                                step="0.05"
+                            />
+                        </flux:field>
                     </div>
                 </flux:card>
 

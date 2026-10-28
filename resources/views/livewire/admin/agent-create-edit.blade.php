@@ -610,6 +610,7 @@
                                     <flux:select.option value="audio">{{ __('Audio') }}</flux:select.option>
                                     <flux:select.option value="embeddings">{{ __('Embeddings') }}</flux:select.option>
                                     <flux:select.option value="transcription">{{ __('Transcription') }}</flux:select.option>
+                                    <flux:select.option value="decisions">{{ __('Decisions') }}</flux:select.option>
                                     <flux:select.option value="speech">{{ __('Speech (TTS)') }}</flux:select.option>
                                     <flux:select.option value="rerank">{{ __('Rerank') }}</flux:select.option>
                                     <flux:select.option value="video">{{ __('Video') }}</flux:select.option>

@@ -236,6 +236,68 @@ class InjectCurrentAiConfigService
     }
 
     /**
+     * Get the decision model configuration with graceful fallback to global AI provider.
+     */
+    public static function getDecisionConfig(): array
+    {
+        $providerId = Configuration::getValue('ai_decision_provider');
+        $modelId = Configuration::getValue('ai_decision_model');
+        $threshold = (float) Configuration::getValue('ai_decision_confidence_threshold', 0.80);
+
+        // Fallback to global AI provider if decision provider is not configured
+        if (! $providerId) {
+            $providerId = Configuration::getValue('ai_provider');
+        }
+
+        $provider = is_numeric($providerId)
+            ? Provider::find($providerId)
+            : Provider::where('name', $providerId)->first();
+
+        if (! $provider) {
+            $allProviders = Provider::all();
+            if ($allProviders->count() === 1) {
+                $provider = $allProviders->first();
+            }
+        }
+
+        $model = null;
+        if ($modelId) {
+            $modelRecord = is_numeric($modelId)
+                ? ProviderModel::find($modelId)
+                : ProviderModel::where('model_name', $modelId)
+                    ->where('provider_id', $provider?->id)
+                    ->first();
+            $model = $modelRecord?->model_name ?? (string) $modelId;
+        }
+
+        // Fallback to global model or provider default model if not resolved
+        if (! $model && $provider) {
+            $globalModelId = Configuration::getValue('ai_model');
+            if ($globalModelId) {
+                $globalModelRecord = is_numeric($globalModelId)
+                    ? ProviderModel::find($globalModelId)
+                    : ProviderModel::where('model_name', $globalModelId)
+                        ->where('provider_id', $provider->id)
+                        ->first();
+                $model = $globalModelRecord?->model_name ?? (string) $globalModelId;
+            }
+            if (! $model) {
+                $firstModel = ProviderModel::where('provider_id', $provider->id)->where('is_active', true)->first();
+                $model = $firstModel?->model_name;
+            }
+        }
+
+        return [
+            'provider' => $provider?->name,
+            'driver' => $provider?->driver ?: $provider?->name,
+            'model' => $model,
+            'confidence_threshold' => $threshold,
+            'api_key' => $provider ? static::resolveProviderApiKey($provider) : null,
+            'url' => static::validProviderUrl($provider?->url),
+        ];
+    }
+
+    /**
      * Return only absolute HTTP(S) provider URLs accepted by the HTTP client.
      */
     private static function validProviderUrl(?string $url): ?string

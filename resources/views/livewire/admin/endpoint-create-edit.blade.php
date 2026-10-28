@@ -146,6 +146,57 @@
             <div class="p-4 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-4">
                 <div class="flex items-center justify-between">
                     <div>
+                        <flux:heading size="sm">{{ __('Decision Filter Gate') }}</flux:heading>
+                        <flux:subheading size="sm">{{ __('Evaluate the payload with a decision model before running the agent or pipeline, skipping irrelevant or low-confidence requests.') }}</flux:subheading>
+                    </div>
+                    <flux:switch wire:model.live="decision_filter_enabled" />
+                </div>
+
+                @if($decision_filter_enabled)
+                    <div class="space-y-4 pt-2">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            @if(count($providers) > 1)
+                                <flux:select wire:model.live="decision_filter_provider" label="{{ __('Decision Provider') }}">
+                                    <flux:select.option value="">{{ __('Default Decision Provider') }}</flux:select.option>
+                                    @foreach($providers as $id => $name)
+                                        <flux:select.option value="{{ $name }}">{{ $name }}</flux:select.option>
+                                    @endforeach
+                                </flux:select>
+                            @endif
+
+                            <flux:select variant="listbox" wire:model="decision_filter_model" label="{{ __('Decision Model') }}" searchable icon="cpu-chip">
+                                <flux:select.option value="">{{ __('Default Decision Model') }}</flux:select.option>
+                                @foreach($decisionModels as $model)
+                                    <flux:select.option value="{{ $model->model_name }}">{{ $model->model_name }}</flux:select.option>
+                                @endforeach
+                            </flux:select>
+
+                            <flux:input wire:model="decision_filter_threshold" type="number" min="0" max="1" step="0.05" label="{{ __('Confidence Threshold (0.0 - 1.0)') }}" />
+
+                            <flux:select wire:model="decision_filter_reject_action" label="{{ __('Action on Rejection') }}">
+                                <flux:select.option value="skip_200">{{ __('Acknowledge & Skip (200 OK with filtered status)') }}</flux:select.option>
+                                <flux:select.option value="reject_422">{{ __('Reject Request (422 Unprocessable Entity)') }}</flux:select.option>
+                                <flux:select.option value="silent_drop">{{ __('Silent Drop (204 No Content)') }}</flux:select.option>
+                            </flux:select>
+                        </div>
+
+                        <flux:field>
+                            <flux:label>{{ __('Evaluation Question / Criteria') }} <span class="text-red-500">*</span></flux:label>
+                            <flux:textarea
+                                wire:model="decision_filter_instructions"
+                                rows="3"
+                                placeholder="{{ __('e.g. Determine if this webhook event represents a critical production alert that must trigger the incident pipeline.') }}"
+                            />
+                            <flux:description>{{ __('Describe the criteria for allowing the payload to pass through. If the model is confident the criteria are met, execution proceeds.') }}</flux:description>
+                            <flux:error name="decision_filter_instructions" />
+                        </flux:field>
+                    </div>
+                @endif
+            </div>
+
+            <div class="p-4 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-4">
+                <div class="flex items-center justify-between">
+                    <div>
                         <flux:heading size="sm">{{ __('agentoom-core::admin.endpoints.direct_response') }}</flux:heading>
                         <flux:subheading size="sm">{{ __('agentoom-core::admin.endpoints.direct_response_help') }}</flux:subheading>
                     </div>

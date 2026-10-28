@@ -7,6 +7,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class PipelineStep extends Model
 {
+    public const TYPE_AGENT = 'agent';
+    public const TYPE_CUSTOM = 'custom';
+    public const TYPE_DECISION = 'decision';
+
     protected static function booted()
     {
         static::saving(function (PipelineStep $step) {
@@ -61,6 +65,7 @@ class PipelineStep extends Model
     }
 
     protected $attributes = [
+        'step_type' => 'agent',
         'on_error' => 'continue',
         'retry_attempts' => 0,
         'retry_delay' => 0,
@@ -98,6 +103,8 @@ class PipelineStep extends Model
         'condition_on_current',
         'force_json',
         'model',
+        'step_type',
+        'decision_config',
     ];
 
     protected function casts(): array
@@ -119,6 +126,8 @@ class PipelineStep extends Model
             'condition_on_current' => 'boolean',
             'force_json' => 'boolean',
             'model' => 'string',
+            'step_type' => 'string',
+            'decision_config' => 'array',
         ];
     }
 
@@ -151,6 +160,23 @@ class PipelineStep extends Model
      */
     public function displayName(): string
     {
-        return $this->name ?? $this->agent?->name ?? $this->method ?? 'Step '.($this->order + 1);
+        if ($this->name) {
+            return $this->name;
+        }
+
+        if ($this->step_type === 'decision') {
+            $question = $this->decision_config['instructions'] ?? null;
+            return $question ? 'Decision: '.\Illuminate\Support\Str::limit($question, 30) : 'Decision Step';
+        }
+
+        return $this->agent?->name ?? $this->method ?? 'Step '.($this->order + 1);
+    }
+
+    /**
+     * Check if this step is a decision model evaluation step.
+     */
+    public function isDecisionStep(): bool
+    {
+        return $this->step_type === 'decision';
     }
 }

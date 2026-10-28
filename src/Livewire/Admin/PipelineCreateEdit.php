@@ -235,12 +235,19 @@ class PipelineCreateEdit extends Component
                 return [
                     'uid' => $indexToUid[$s->order],
                     'id' => $s->id,
-                    'type' => ($s->method || $s->mcp_actionable_id) ? 'custom' : ($s->agent_id ? 'agent' : 'receive_data'),
+                    'type' => $s->step_type ?: (($s->method || $s->mcp_actionable_id) ? 'custom' : ($s->agent_id ? 'agent' : 'receive_data')),
                     'agent_id' => $s->agent_id,
                     'class' => $s->class,
                     'method' => $s->method,
                     'mcp_actionable_id' => $s->mcp_actionable_id,
                     'method_key' => $s->mcp_actionable_id ? "mcp:{$s->mcp_actionable_id}" : ($s->method ? "{$s->class}@{$s->method}" : ''),
+                    'model' => $s->model ?? '',
+                    'decision_config' => $s->decision_config ?? [
+                        'instructions' => '',
+                        'question_type' => 'noul',
+                        'confidence_threshold' => 0.80,
+                        'provider_id' => '',
+                    ],
                     'order' => $s->order,
                     'name' => $s->name ?? '',
                     'instructions_override' => $this->stripCacheBuster($s->instructions_override ?? ''),
@@ -306,6 +313,8 @@ class PipelineCreateEdit extends Component
             $type = 'receive_data';
         }
 
+        $defaultDecisionConfig = \Agentoom\Core\Services\InjectCurrentAiConfigService::getDecisionConfig();
+
         $this->steps[] = [
             'uid' => $uid,
             'id' => null,
@@ -315,6 +324,13 @@ class PipelineCreateEdit extends Component
             'method' => '',
             'mcp_actionable_id' => null,
             'method_key' => '',
+            'model' => $defaultDecisionConfig['model'] ?? '',
+            'decision_config' => [
+                'instructions' => '',
+                'question_type' => 'noul',
+                'confidence_threshold' => $defaultDecisionConfig['confidence_threshold'] ?? 0.80,
+                'provider_id' => $defaultDecisionConfig['provider'] ?? '',
+            ],
             'order' => count($this->steps),
             'name' => '',
             'instructions_override' => '',
@@ -773,10 +789,13 @@ class PipelineCreateEdit extends Component
 
             $step->fill([
                 'pipeline_id' => $pipeline->id,
+                'step_type' => $stepData['type'] ?? 'agent',
                 'agent_id' => ($stepData['type'] ?? 'agent') === 'agent' ? (($stepData['agent_id'] ?? null) ?: null) : null,
                 'class' => ($stepData['type'] ?? 'agent') === 'custom' ? (($stepData['class'] ?? null) ?: null) : null,
                 'method' => ($stepData['type'] ?? 'agent') === 'custom' ? (($stepData['method'] ?? null) ?: null) : null,
                 'mcp_actionable_id' => ($stepData['type'] ?? 'agent') === 'custom' ? (($stepData['mcp_actionable_id'] ?? null) ?: null) : null,
+                'model' => ($stepData['type'] ?? 'agent') === 'decision' ? (($stepData['model'] ?? null) ?: null) : null,
+                'decision_config' => ($stepData['type'] ?? 'agent') === 'decision' ? ($stepData['decision_config'] ?? null) : null,
                 'order' => $index,
                 'name' => ($stepData['name'] ?? null) ?: null,
                 'instructions_override' => ($stepData['instructions_override'] ?? null) ?: null,
@@ -1011,6 +1030,10 @@ class PipelineCreateEdit extends Component
             if (($step['type'] ?? 'agent') === 'custom' && (empty($step['class']) || empty($step['method']))) {
                 $this->addError("steps.{$index}.method", 'Please select a Direct Action for this step.');
             }
+
+            if (($step['type'] ?? 'agent') === 'decision' && empty($step['decision_config']['instructions'])) {
+                $this->addError("steps.{$index}.decision_config.instructions", 'Please provide a question or instructions for the decision evaluation.');
+            }
         }
     }
 
@@ -1023,6 +1046,19 @@ class PipelineCreateEdit extends Component
                 $this->steps[$index]['instructions_override'] = '';
                 $this->steps[$index]['method_key'] = '';
                 $this->steps[$index]['agent_id'] = '';
+
+                if ($value === 'decision') {
+                    $defaultDecisionConfig = \Agentoom\Core\Services\InjectCurrentAiConfigService::getDecisionConfig();
+                    $this->steps[$index]['model'] = $this->steps[$index]['model'] ?: ($defaultDecisionConfig['model'] ?? '');
+                    if (empty($this->steps[$index]['decision_config']['instructions'])) {
+                        $this->steps[$index]['decision_config'] = [
+                            'instructions' => '',
+                            'question_type' => 'noul',
+                            'confidence_threshold' => $defaultDecisionConfig['confidence_threshold'] ?? 0.80,
+                            'provider_id' => $defaultDecisionConfig['provider'] ?? '',
+                        ];
+                    }
+                }
             }
         }
 
@@ -1166,6 +1202,27 @@ class PipelineCreateEdit extends Component
     public function projects()
     {
         return Project::orderBy('name')->get();
+    }
+
+    #[Computed]
+    public function decisionModels()
+    {
+        $defaultConfig = \Agentoom\Core\Services\InjectCurrentAiConfigService::getDecisionConfig();
+        $providerName = $defaultConfig['provider'] ?? null;
+
+        $query = \Agentoom\Core\Models\ProviderModel::query()->where('is_active', true);
+        if ($providerName) {
+            $query->whereHas('provider', fn ($q) => $q->where('name', $providerName));
+        }
+
+        $decisionModels = (clone $query)->where(function ($q) {
+            $q->where('model_features->architecture->output_modalities', 'like', '%"decisions"%')
+                ->orWhere('model_name', 'like', '%jev%')
+                ->orWhere('model_name', 'like', '%decid%')
+                ->orWhere('model_name', 'like', '%classify%');
+        })->get();
+
+        return $decisionModels->isNotEmpty() ? $decisionModels : $query->get();
     }
 
     public function render()

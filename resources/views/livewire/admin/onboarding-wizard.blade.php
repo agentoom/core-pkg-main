@@ -244,6 +244,27 @@
                         @endforeach
                     </flux:select>
                 </flux:card>
+
+                <flux:card class="space-y-4">
+                    <flux:heading size="sm" class="flex items-center gap-2">
+                        <span>{{ __('agentoom-core::admin.configs.section_decision') }}</span>
+                        <flux:badge size="sm" variant="neutral" inset="top bottom">{{ __('agentoom-core::admin.common.optional') }}</flux:badge>
+                    </flux:heading>
+                    <flux:description>{{ __('agentoom-core::admin.configs.decision_help') }}</flux:description>
+                    <flux:select
+                        variant="listbox"
+                        wire:model="decisionModel"
+                        label="{{ __('agentoom-core::admin.configs.decision_model') }}"
+                        placeholder="{{ __('agentoom-core::admin.configs.model_placeholder') }}"
+                        searchable
+                        icon="cpu-chip"
+                    >
+                        <flux:select.option value="">{{ __('agentoom-core::admin.common.none') }}</flux:select.option>
+                        @foreach ($decisionModels as $model)
+                            <flux:select.option value="{{ $model->id }}">{{ $model->model_name }}</flux:select.option>
+                        @endforeach
+                    </flux:select>
+                </flux:card>
                     </div>
 
                 <div class="flex justify-between pt-4">

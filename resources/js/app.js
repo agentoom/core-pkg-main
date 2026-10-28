@@ -55,30 +55,33 @@ window.route = (name, params) => {
 };
 
 export function setupAgentoomApp(el) {
-    if (el) {
-        createInertiaApp({
-            title: (title) => `${title} - Agentoom`,
-            resolve: (name) => {
-                const pages = import.meta.glob([
-                    './Pages/**/*.vue',
-                    '../../../*/resources/js/Pages/**/*.vue',
-                ]);
-
-                // "package::Admin/V2/Page" resolves into that package's pages.
-                if (name.includes('::')) {
-                    const [pkg, page] = name.split('::');
-
-                    return resolvePageComponent(`../../../${pkg}/resources/js/Pages/${page}.vue`, pages);
-                }
-
-                return resolvePageComponent(`./Pages/${name}.vue`, pages);
-            },
-            setup({ el, App, props, plugin }) {
-                const app = createApp({ render: () => h(App, props) })
-                    .use(plugin);
-                app.config.globalProperties.route = window.route;
-                app.mount(el);
-            },
-        });
+    if (!el || el.__vue_app__ || el.__agentoom_init__) {
+        return;
     }
+    el.__agentoom_init__ = true;
+
+    createInertiaApp({
+        title: (title) => `${title} - Agentoom`,
+        resolve: (name) => {
+            const pages = import.meta.glob([
+                './Pages/**/*.vue',
+                '../../../*/resources/js/Pages/**/*.vue',
+            ]);
+
+            // "package::Admin/V2/Page" resolves into that package's pages.
+            if (name.includes('::')) {
+                const [pkg, page] = name.split('::');
+
+                return resolvePageComponent(`../../../${pkg}/resources/js/Pages/${page}.vue`, pages);
+            }
+
+            return resolvePageComponent(`./Pages/${name}.vue`, pages);
+        },
+        setup({ el, App, props, plugin }) {
+            const app = createApp({ render: () => h(App, props) })
+                .use(plugin);
+            app.config.globalProperties.route = window.route;
+            app.mount(el);
+        },
+    });
 }

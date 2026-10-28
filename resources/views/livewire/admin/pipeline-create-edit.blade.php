@@ -268,6 +268,7 @@
                                                         <flux:radio.group wire:model.live="steps.{{ $i }}.type" label="{{ __('agentoom-core::admin.schedules.target_type') }}" variant="segmented">
                                                             <flux:radio value="agent" label="{{ __('agentoom-core::admin.schedules.agent') }}" />
                                                             <flux:radio value="custom" label="{{ __('agentoom-core::admin.schedules.custom_method') }}" />
+                                                            <flux:radio value="decision" label="{{ __('Decision Model') }}" />
                                                         </flux:radio.group>
                                                     </flux:field>
                                                 @endif
@@ -318,6 +319,47 @@
                                                         
                                                         <flux:error name="steps.{{ $i }}.method" />
                                                     </flux:field>
+                                                @elseif (($step['type'] ?? 'agent') === 'decision')
+                                                    <div class="col-span-full space-y-4 rounded-xl border border-blue-200 dark:border-blue-900/50 bg-blue-50/40 dark:bg-blue-950/20 p-4">
+                                                        <div class="flex items-center gap-2 text-blue-700 dark:text-blue-300 font-medium text-xs uppercase tracking-wider">
+                                                            <flux:icon icon="scale" variant="mini" />
+                                                            <span>{{ __('Decision Model Evaluation') }}</span>
+                                                        </div>
+
+                                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                            <flux:field wire:key="step-{{ $step['uid'] }}-decision-model">
+                                                                <flux:label>{{ __('agentoom-core::admin.configs.decision_model') }}</flux:label>
+                                                                <flux:select variant="listbox" wire:model.live="steps.{{ $i }}.model" searchable icon="cpu-chip">
+                                                                    <flux:select.option value="">{{ __('Default Decision Model') }}</flux:select.option>
+                                                                    @foreach ($this->decisionModels as $model)
+                                                                        <flux:select.option value="{{ $model->model_name }}">{{ $model->model_name }}</flux:select.option>
+                                                                    @endforeach
+                                                                </flux:select>
+                                                                <flux:description>{{ __('Leave empty to use the system default decision model.') }}</flux:description>
+                                                            </flux:field>
+
+                                                            <div class="grid grid-cols-2 gap-3">
+                                                                <flux:field wire:key="step-{{ $step['uid'] }}-decision-type">
+                                                                    <flux:label>{{ __('Evaluation Type') }}</flux:label>
+                                                                    <flux:select wire:model="steps.{{ $i }}.decision_config.question_type">
+                                                                        <flux:select.option value="noul">{{ __('Binary (Yes / No)') }}</flux:select.option>
+                                                                        <flux:select.option value="choice">{{ __('Multi-Choice') }}</flux:select.option>
+                                                                    </flux:select>
+                                                                </flux:field>
+
+                                                                <flux:field wire:key="step-{{ $step['uid'] }}-decision-threshold">
+                                                                    <flux:label>{{ __('Confidence Threshold') }}</flux:label>
+                                                                    <flux:input wire:model="steps.{{ $i }}.decision_config.confidence_threshold" type="number" min="0" max="1" step="0.05" placeholder="0.80" />
+                                                                </flux:field>
+                                                            </div>
+                                                        </div>
+
+                                                        <flux:field wire:key="step-{{ $step['uid'] }}-decision-instructions">
+                                                            <flux:label>{{ __('Decision Question / Evaluation Instructions') }} <span class="text-red-500">*</span></flux:label>
+                                                            <flux:textarea wire:model="steps.{{ $i }}.decision_config.instructions" rows="2" placeholder="{{ __('e.g. Determine if this input represents an eligible refund request or requires immediate escalation.') }}" />
+                                                            <flux:error name="steps.{{ $i }}.decision_config.instructions" />
+                                                        </flux:field>
+                                                    </div>
                                                 @endif
 
                                                 @if (($step['type'] ?? 'agent') !== 'receive_data' && (int)$i > 0)
@@ -421,24 +463,24 @@
                                                     </div>
 
                                                     <flux:field wire:key="step-{{ $step['uid'] }}-next-true">
-                                                        <flux:label>{{ __('agentoom-core::admin.pipelines.next_step_on_true') }}</flux:label>
+                                                        <flux:label>{{ ($step['type'] ?? 'agent') === 'decision' ? __('Next Step on High Confidence / True') : __('agentoom-core::admin.pipelines.next_step_on_true') }}</flux:label>
                                                         <flux:select wire:model="steps.{{ $i }}.next_step_on_true" wire:key="step-{{ $step['uid'] }}-next-true-select">
                                                             <flux:select.option value="">{{ __('agentoom-core::admin.pipelines.next_step_default') }}</flux:select.option>
                                                             @foreach ($steps as $nextStepIdx => $nextStep)
                                                                 <flux:select.option value="{{ $nextStep['uid'] }}" wire:key="step-{{ $step['uid'] }}-next-true-opt-{{ $nextStep['uid'] }}">
-                                                                    Step {{ $nextStepIdx + 1 }}: {{ ($nextStep['name'] ?? '') ?: (($nextStep['type'] ?? 'agent') === 'agent' ? 'Agent' : 'Action') }}
+                                                                    Step {{ $nextStepIdx + 1 }}: {{ ($nextStep['name'] ?? '') ?: (($nextStep['type'] ?? 'agent') === 'agent' ? 'Agent' : (($nextStep['type'] ?? 'agent') === 'decision' ? 'Decision' : 'Action')) }}
                                                                 </flux:select.option>
                                                             @endforeach
                                                         </flux:select>
                                                     </flux:field>
 
                                                     <flux:field wire:key="step-{{ $step['uid'] }}-next-false">
-                                                        <flux:label>{{ __('agentoom-core::admin.pipelines.next_step_on_false') }}</flux:label>
+                                                        <flux:label>{{ ($step['type'] ?? 'agent') === 'decision' ? __('Next Step on Low Confidence / False') : __('agentoom-core::admin.pipelines.next_step_on_false') }}</flux:label>
                                                         <flux:select wire:model="steps.{{ $i }}.next_step_on_false" wire:key="step-{{ $step['uid'] }}-next-false-select">
                                                             <flux:select.option value="">{{ __('agentoom-core::admin.pipelines.next_step_default') }}</flux:select.option>
                                                             @foreach ($steps as $nextStepIdx => $nextStep)
                                                                 <flux:select.option value="{{ $nextStep['uid'] }}" wire:key="step-{{ $step['uid'] }}-next-false-opt-{{ $nextStep['uid'] }}">
-                                                                    Step {{ $nextStepIdx + 1 }}: {{ ($nextStep['name'] ?? '') ?: (($nextStep['type'] ?? 'agent') === 'agent' ? 'Agent' : 'Action') }}
+                                                                    Step {{ $nextStepIdx + 1 }}: {{ ($nextStep['name'] ?? '') ?: (($nextStep['type'] ?? 'agent') === 'agent' ? 'Agent' : (($nextStep['type'] ?? 'agent') === 'decision' ? 'Decision' : 'Action')) }}
                                                                 </flux:select.option>
                                                             @endforeach
                                                         </flux:select>

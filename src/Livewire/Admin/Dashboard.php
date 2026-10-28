@@ -86,7 +86,7 @@ class Dashboard extends Component
             ->toArray();
 
         $chartData = [];
-        for ($date = $dateFrom->copy(); $date->lte($dateTo); $date->addDay()) {
+        for ($date = $dateFrom->copy(); $date->lte($dateTo); $date = $date->addDay()) {
             $dateString = $date->format('Y-m-d');
             $chartData[] = [
                 'date' => $dateString,

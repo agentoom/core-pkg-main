@@ -4,6 +4,7 @@ namespace Agentoom\Core\Tests\Feature;
 
 use Agentoom\Core\Models\Agent;
 use Agentoom\Core\Models\AgentSkill;
+use Agentoom\Core\Models\Configuration;
 use Agentoom\Core\Models\Pipeline;
 use Agentoom\Core\Models\PipelineRun;
 use Agentoom\Core\Models\PipelineStep;
@@ -33,6 +34,7 @@ class PipelineOpenRouterCacheTest extends TestCase
 
         $user = User::factory()->create();
         $this->actingAs($user);
+        Configuration::setValue('app_ai_credits', 10000);
 
         $provider = Provider::create([
             'name' => 'openrouter',
@@ -102,6 +104,7 @@ class PipelineOpenRouterCacheTest extends TestCase
 
         $user = User::factory()->create();
         $this->actingAs($user);
+        Configuration::setValue('app_ai_credits', 10000);
 
         $provider = Provider::create([
             'name' => 'openrouter',

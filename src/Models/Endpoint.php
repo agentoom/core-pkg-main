@@ -37,6 +37,12 @@ class Endpoint extends Model
         'direct_response_body',
         'direct_response_code',
         'direct_response_content_type',
+        'decision_filter_enabled',
+        'decision_filter_provider',
+        'decision_filter_model',
+        'decision_filter_instructions',
+        'decision_filter_threshold',
+        'decision_filter_reject_action',
     ];
 
     protected function casts(): array
@@ -56,6 +62,8 @@ class Endpoint extends Model
             'mcp_server_id' => 'integer',
             'direct_response_enabled' => 'boolean',
             'direct_response_code' => 'integer',
+            'decision_filter_enabled' => 'boolean',
+            'decision_filter_threshold' => 'float',
         ];
     }
 

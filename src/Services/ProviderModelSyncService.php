@@ -73,6 +73,7 @@ class ProviderModelSyncService
         $models = $this->normalizeModelsResponse($provider, $data);
 
         // For OpenRouter, also fetch dedicated transcription models (e.g. OpenAI Whisper, Voxtral, ElevenLabs)
+        // and dedicated decision models (e.g. TypeSafe Jev, Liquid d1)
         $driver = $provider->driver ?: $provider->name;
         if ($driver === 'openrouter' && ! str_contains($url, 'output_modalities')) {
             try {
@@ -86,6 +87,19 @@ class ProviderModelSyncService
                 }
             } catch (\Throwable $e) {
                 Log::warning("Could not fetch OpenRouter transcription models: {$e->getMessage()}");
+            }
+
+            try {
+                $decisionsUrl = str_contains($url, '?')
+                    ? $url.'&output_modalities=decisions'
+                    : $url.'?output_modalities=decisions';
+                $decisionsResponse = Http::timeout(15)->withHeaders($this->getHeaders($provider))->get($decisionsUrl);
+                if ($decisionsResponse->successful() && is_array($decisionsResponse->json())) {
+                    $decisionModels = $this->normalizeModelsResponse($provider, $decisionsResponse->json());
+                    $models = array_merge($models, $decisionModels);
+                }
+            } catch (\Throwable $e) {
+                Log::warning("Could not fetch OpenRouter decision models: {$e->getMessage()}");
             }
         }
 

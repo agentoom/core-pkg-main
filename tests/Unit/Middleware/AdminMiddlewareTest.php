@@ -29,4 +29,20 @@ class AdminMiddlewareTest extends TestCase
 
         $this->assertSame($redirector, $result);
     }
+
+    public function test_it_registers_core_middleware_aliases()
+    {
+        $router = app('router');
+        $middlewares = $router->getMiddleware();
+
+        $this->assertArrayHasKey('admin', $middlewares);
+        $this->assertSame(AdminMiddleware::class, $middlewares['admin']);
+        $this->assertArrayHasKey('superadmin', $middlewares);
+        $this->assertArrayHasKey('check.onboarding', $middlewares);
+        $this->assertArrayHasKey('endpoint.rate.limit', $middlewares);
+        $this->assertArrayHasKey('mcp.api.token', $middlewares);
+        $this->assertArrayHasKey('role', $middlewares);
+        $this->assertArrayHasKey('permission', $middlewares);
+        $this->assertArrayHasKey('role_or_permission', $middlewares);
+    }
 }

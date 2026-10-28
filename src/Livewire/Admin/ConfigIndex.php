@@ -32,6 +32,14 @@ class ConfigIndex extends Component
 
     public string $ai_transcription_output_modality = 'all';
 
+    public string $ai_decision_provider = '';
+
+    public string $ai_decision_model = '';
+
+    public string $ai_decision_output_modality = 'decisions';
+
+    public float $ai_decision_confidence_threshold = 0.80;
+
     public string $ai_temperature = '0.4';
 
     public string $ai_top_p = '0.8';
@@ -108,6 +116,10 @@ class ConfigIndex extends Component
         $this->ai_transcription_provider = Configuration::getValue('ai_transcription_provider', '');
         $this->ai_transcription_model = Configuration::getValue('ai_transcription_model', '');
         $this->ai_transcription_output_modality = Configuration::getValue('ai_transcription_output_modality', 'all');
+        $this->ai_decision_provider = Configuration::getValue('ai_decision_provider', '');
+        $this->ai_decision_model = Configuration::getValue('ai_decision_model', '');
+        $this->ai_decision_output_modality = Configuration::getValue('ai_decision_output_modality', 'decisions');
+        $this->ai_decision_confidence_threshold = (float) Configuration::getValue('ai_decision_confidence_threshold', 0.80);
         $this->low_credit_threshold = (float) Configuration::getValue('low_credit_threshold', 1.0);
         $this->app_ai_credits = (float) Configuration::getValue('app_ai_credits', 0.0);
         $this->openrouter_multiplier = (float) Configuration::getValue('openrouter_multiplier', 1.25);
@@ -137,6 +149,9 @@ class ConfigIndex extends Component
             $onlyProvider = $allProviders->first();
             $this->ai_provider = $onlyProvider->id;
             $this->ai_transcription_provider = $onlyProvider->id;
+            if (! $this->ai_decision_provider) {
+                $this->ai_decision_provider = $onlyProvider->id;
+            }
 
             if (! $this->ai_api_key) {
                 $this->ai_api_key = $onlyProvider->api_key;
@@ -173,6 +188,10 @@ class ConfigIndex extends Component
             'ai_transcription_provider' => 'nullable|string|max:100',
             'ai_transcription_model' => 'nullable|string|max:255',
             'ai_transcription_output_modality' => 'nullable|string',
+            'ai_decision_provider' => 'nullable|string|max:100',
+            'ai_decision_model' => 'nullable|string|max:255',
+            'ai_decision_output_modality' => 'nullable|string',
+            'ai_decision_confidence_threshold' => 'required|numeric|min:0|max:1',
             'low_credit_threshold' => 'required|numeric|min:0',
             'openrouter_multiplier' => 'required|numeric|min:1',
             'credit_limit_notification_emails' => 'nullable|string',
@@ -229,6 +248,17 @@ class ConfigIndex extends Component
         $this->ai_transcription_model = '';
     }
 
+    public function updatedAiDecisionProvider(): void
+    {
+        $this->ai_decision_output_modality = 'decisions';
+        $this->ai_decision_model = '';
+    }
+
+    public function updatedAiDecisionOutputModality(): void
+    {
+        $this->ai_decision_model = '';
+    }
+
     public function save(): void
     {
         $this->validate();
@@ -245,6 +275,7 @@ class ConfigIndex extends Component
             'ai_provider', 'ai_api_key', 'ai_model', 'ai_output_modality', 'ai_temperature', 'ai_top_p', 'ai_model_suffix',
             'ai_disclosure_enabled', 'ai_disclosure_text', 'ai_disclosure_version',
             'ai_transcription_provider', 'ai_transcription_model', 'ai_transcription_output_modality',
+            'ai_decision_provider', 'ai_decision_model', 'ai_decision_output_modality', 'ai_decision_confidence_threshold',
             'low_credit_threshold',
             'openrouter_multiplier', 'credit_limit_notification_emails', 'email_footer_content',
             'chat_embed_allowed_domains',
@@ -262,6 +293,7 @@ class ConfigIndex extends Component
             'ai_provider', 'ai_api_key', 'ai_model', 'ai_output_modality', 'ai_temperature', 'ai_top_p', 'ai_model_suffix',
             'ai_disclosure_enabled', 'ai_disclosure_text', 'ai_disclosure_version',
             'ai_transcription_provider', 'ai_transcription_model', 'ai_transcription_output_modality',
+            'ai_decision_provider', 'ai_decision_model', 'ai_decision_output_modality', 'ai_decision_confidence_threshold',
             'openrouter_multiplier', 'email_footer_content',
             'chat_embed_allowed_domains',
             ...$complianceKeys,
@@ -488,10 +520,19 @@ class ConfigIndex extends Component
             $transcription_models = $this->getModelsForProvider($this->ai_transcription_provider, $this->ai_transcription_output_modality);
         }
 
+        $decision_models = collect();
+        if ($this->ai_decision_provider) {
+            $decision_models = $this->getModelsForProvider($this->ai_decision_provider, $this->ai_decision_output_modality);
+            if ($decision_models->isEmpty() && $this->ai_decision_output_modality !== 'all') {
+                $decision_models = $this->getModelsForProvider($this->ai_decision_provider, 'all');
+            }
+        }
+
         return view('agentoom-core::livewire.admin.config-index', [
             'providers' => $providers,
             'models' => $models,
             'transcription_models' => $transcription_models,
+            'decision_models' => $decision_models,
             'allModelPricings' => $allModelPricings,
             'pricingSyncs' => DB::table('ai_pricing_syncs')->orderBy('source')->get(),
         ])->layout('agentoom-core::layouts.admin', [
@@ -529,6 +570,13 @@ class ConfigIndex extends Component
                         ->orWhere('model_name', 'like', '%audio%')
                         ->orWhere('model_name', 'like', '%speech%')
                         ->orWhere('model_name', 'like', '%voxtral%');
+                });
+            } elseif ($modality === 'decisions') {
+                $query->where(function ($q) {
+                    $q->where('model_features->architecture->output_modalities', 'like', '%"decisions"%')
+                        ->orWhere('model_name', 'like', '%jev%')
+                        ->orWhere('model_name', 'like', '%decid%')
+                        ->orWhere('model_name', 'like', '%classify%');
                 });
             } else {
                 $query->where('model_features->architecture->output_modalities', 'like', '%"'.$modality.'"%');

@@ -36,8 +36,11 @@ use Agentoom\Core\DataTransfer\Sections\SkillPresetsSection;
 use Agentoom\Core\DataTransfer\Sections\SkillsSection;
 use Agentoom\Core\Execution\ActionExecutor;
 use Agentoom\Core\Execution\ExecutionPipeRegistry;
+use Agentoom\Core\Http\Middleware\AdminMiddleware;
 use Agentoom\Core\Http\Middleware\CheckOnboarding;
 use Agentoom\Core\Http\Middleware\EndpointRateLimitMiddleware;
+use Agentoom\Core\Http\Middleware\SuperAdminMiddleware;
+use Agentoom\Core\Http\Middleware\ValidateMcpApiToken;
 use Agentoom\Core\Inertia\PackageAwareViewFinder;
 use Agentoom\Core\Listeners\WebhookEventSubscriber;
 use Agentoom\Core\Models\Agent;
@@ -79,6 +82,9 @@ use Laravel\Reverb\Events\MessageSent;
 use Livewire\Livewire;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
+use Spatie\Permission\Middleware\PermissionMiddleware;
+use Spatie\Permission\Middleware\RoleMiddleware;
+use Spatie\Permission\Middleware\RoleOrPermissionMiddleware;
 
 class AgentoomCoreServiceProvider extends ServiceProvider
 {
@@ -356,9 +362,8 @@ class AgentoomCoreServiceProvider extends ServiceProvider
             );
         });
 
+        $this->registerMiddlewareAliases();
         $this->registerRoutes();
-        $this->app['router']->aliasMiddleware('endpoint.rate.limit', EndpointRateLimitMiddleware::class);
-        $this->app['router']->aliasMiddleware('check.onboarding', CheckOnboarding::class);
         Livewire::addNamespace('agentoom-core', null, 'Agentoom\\Core\\Livewire');
 
         $this->configureHorizon();
@@ -526,6 +531,20 @@ class AgentoomCoreServiceProvider extends ServiceProvider
         }
 
         return array_values(array_unique($hosts));
+    }
+
+    protected function registerMiddlewareAliases(): void
+    {
+        $router = $this->app['router'];
+
+        $router->aliasMiddleware('admin', AdminMiddleware::class);
+        $router->aliasMiddleware('superadmin', SuperAdminMiddleware::class);
+        $router->aliasMiddleware('check.onboarding', CheckOnboarding::class);
+        $router->aliasMiddleware('endpoint.rate.limit', EndpointRateLimitMiddleware::class);
+        $router->aliasMiddleware('mcp.api.token', ValidateMcpApiToken::class);
+        $router->aliasMiddleware('role', RoleMiddleware::class);
+        $router->aliasMiddleware('permission', PermissionMiddleware::class);
+        $router->aliasMiddleware('role_or_permission', RoleOrPermissionMiddleware::class);
     }
 
     protected function registerRoutes(): void

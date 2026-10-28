@@ -187,6 +187,7 @@ const Sidebar = ({ selectedNode, onUpdateNode, onDeleteNode, agents, actionableM
             >
                 <option value="agent">{t.agent || 'Agent'}</option>
                 <option value="custom">{t.custom_method || 'Direct Action'}</option>
+                <option value="decision">{t.decision || 'Decision Model'}</option>
                 <option value="receive_data" disabled>Receive Data</option>
             </select>
             </div>
@@ -229,6 +230,43 @@ const Sidebar = ({ selectedNode, onUpdateNode, onDeleteNode, agents, actionableM
                     </optgroup>
                 ))}
                 </select>
+            </div>
+            )}
+
+            {step.type === 'decision' && (
+            <div className="space-y-3 p-2 bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/40 rounded">
+                <div>
+                    <label className="block text-[10px] font-semibold text-zinc-700 dark:text-zinc-300 mb-1 uppercase tracking-wider">{t.decision_model || 'Decision Model'}</label>
+                    <input
+                        type="text"
+                        className="w-full px-2 py-1.5 border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 rounded text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all"
+                        value={step.model || ''}
+                        placeholder="Default Decision Model"
+                        onChange={(e) => handleChange('model', e.target.value)}
+                    />
+                </div>
+                <div>
+                    <label className="block text-[10px] font-semibold text-zinc-700 dark:text-zinc-300 mb-1 uppercase tracking-wider">{t.instructions || 'Question / Instructions'}</label>
+                    <textarea
+                        rows={2}
+                        className="w-full px-2 py-1.5 border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 rounded text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all"
+                        value={step.decision_config?.instructions || ''}
+                        placeholder="e.g. Determine if customer requires refund."
+                        onChange={(e) => handleChange('decision_config', { ...(step.decision_config || {}), instructions: e.target.value })}
+                    />
+                </div>
+                <div>
+                    <label className="block text-[10px] font-semibold text-zinc-700 dark:text-zinc-300 mb-1 uppercase tracking-wider">{t.threshold || 'Confidence Threshold'}</label>
+                    <input
+                        type="number"
+                        min="0"
+                        max="1"
+                        step="0.05"
+                        className="w-full px-2 py-1.5 border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 rounded text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all"
+                        value={step.decision_config?.confidence_threshold ?? 0.80}
+                        onChange={(e) => handleChange('decision_config', { ...(step.decision_config || {}), confidence_threshold: parseFloat(e.target.value) || 0.80 })}
+                    />
+                </div>
             </div>
             )}
         </div>

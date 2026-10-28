@@ -129,6 +129,51 @@ class EndpointController extends Controller
             'request_data' => $inputData,
         ]);
 
+        // Decision filter check: evaluate payload before executing linked action / pipeline
+        if ($endpoint->decision_filter_enabled && ! empty($endpoint->decision_filter_instructions)) {
+            $decisionService = app(\Agentoom\Core\Services\DecisionModelService::class);
+            $filterResult = $decisionService->evaluate(
+                state: $processedData,
+                instructions: $endpoint->decision_filter_instructions,
+                threshold: (float) ($endpoint->decision_filter_threshold ?: 0.80),
+                providerIdentifier: $endpoint->decision_filter_provider,
+                modelIdentifier: $endpoint->decision_filter_model,
+                user: $endpoint->user,
+                agentId: $endpoint->agent_id,
+                projectId: $endpoint->project_id
+            );
+
+            if (! ($filterResult['passed'] ?? false)) {
+                $reason = "Filtered out by decision model. Confidence: {$filterResult['confidence']} (Threshold: {$filterResult['threshold']})";
+                Log::info("Endpoint '{$endpoint->name}' (slug: {$endpoint->slug}): {$reason}", [
+                    'decision' => $filterResult['decision'],
+                    'confidence' => $filterResult['confidence'],
+                ]);
+
+                $log->update([
+                    'status' => 'filtered',
+                    'response_data' => $filterResult,
+                    'error_message' => $reason,
+                ]);
+
+                $rejectAction = $endpoint->decision_filter_reject_action ?: 'skip_200';
+
+                return match ($rejectAction) {
+                    'reject_422' => response()->json([
+                        'status' => 'rejected',
+                        'message' => 'Request did not meet the endpoint decision confidence threshold.',
+                        'confidence' => $filterResult['confidence'],
+                    ], 422),
+                    'silent_drop' => response()->noContent(),
+                    default => response()->json([
+                        'status' => 'filtered',
+                        'message' => 'Request evaluated and skipped by decision filter.',
+                        'confidence' => $filterResult['confidence'],
+                    ], 200),
+                };
+            }
+        }
+
         // Emergency stop check — blocks execution if a stop is active
         app(ComplianceIntegration::class)->assertNotStopped('endpoint', $endpoint->id);
         if ($endpoint->agent_id) {

@@ -244,7 +244,7 @@ class PipelineRunnerService
 
                 // For condition-only steps (no class/method), evaluate condition BEFORE running
                 // For steps with both an action AND a condition, run the step first then evaluate
-                $hasAction = ($step->class && $step->method) || $step->agent_id;
+                $hasAction = ($step->class && $step->method) || $step->agent_id || $step->isDecisionStep();
                 $actualPreviousOutput = $previousOutput;
 
                 if ($step->condition_if && ! $hasAction) {
@@ -253,8 +253,8 @@ class PipelineRunnerService
                         $input,
                         $actualPreviousOutput,
                         null,
-                        $step->condition_on_input ?? false,
-                        $step->condition_on_previous ?? false,
+                        $step->condition_on_input ?? true,
+                        $step->condition_on_previous ?? true,
                         $step->condition_on_current ?? false
                     );
                     Log::debug("Pre-action condition check for step {$step->id} (order {$step->order}): Met=".($conditionMet ? 'YES' : 'NO')." Condition={$step->condition_if}");
@@ -307,7 +307,21 @@ class PipelineRunnerService
 
                     Log::debug('Step '.($i + 1).' completed for run #'.$run->id);
 
-                    if ($hasAction && $step->condition_if) {
+                    if ($step->isDecisionStep()) {
+                        $lastResult = app()->bound('last_decision_result') ? app('last_decision_result') : null;
+                        $passed = $lastResult['passed'] ?? false;
+                        $nextOrder = $passed ? $step->next_step_on_true : $step->next_step_on_false;
+                        Log::debug("Decision step #{$step->id} check: Passed=".($passed ? 'YES' : 'NO')." NextOrder=".($nextOrder ?? 'default next'));
+
+                        if ($nextOrder !== null) {
+                            $nextStep = $steps->firstWhere('order', $nextOrder);
+                            if ($nextStep) {
+                                $i = $steps->search(fn ($s) => $s->id === $nextStep->id) - 1;
+
+                                continue;
+                            }
+                        }
+                    } elseif ($hasAction && $step->condition_if) {
                         $conditionMet = $this->evaluateCondition(
                             $step->condition_if,
                             $input,
@@ -547,6 +561,12 @@ class PipelineRunnerService
         bool $onPrevious = true,
         bool $onCurrent = true
     ): bool {
+        if (! $onInput && ! $onPrevious && ! $onCurrent) {
+            $onInput = true;
+            $onPrevious = true;
+            $onCurrent = ($currentOutput !== null);
+        }
+
         // Check if condition is valid JSON
         $decoded = json_decode($condition, true);
         if (json_last_error() === JSON_ERROR_NONE && is_array($decoded) && isset($decoded['operator'])) {
@@ -719,9 +739,13 @@ class PipelineRunnerService
                 ->get();
 
             $allPreviousOutputs = [];
-            foreach ($previousStepRuns as $psr) {
+            foreach ($previousStepRuns as $index => $psr) {
                 $absOrder = $psr->pipelineStep?->order ?? $psr->order;
                 $allPreviousOutputs[$absOrder + 1] = $psr->output;
+                if ($absOrder > 0) {
+                    $allPreviousOutputs[$absOrder] = $psr->output;
+                }
+                $allPreviousOutputs[$index + 1] = $psr->output;
             }
 
             if ($step->mcp_actionable_id || ($step->class && $step->method)) {
@@ -823,6 +847,54 @@ class PipelineRunnerService
                     'output' => $output,
                     'completed_at' => now(),
                 ]);
+
+                return $output;
+            }
+
+            if ($step->isDecisionStep()) {
+                $decisionConfig = $step->decision_config ?? [];
+                $instructions = $decisionConfig['instructions'] ?? $step->instructions_override ?? '';
+                if ($instructions) {
+                    $instructions = $this->replaceShortcodes($instructions, $run->pipeline);
+                    $instructions = $this->replaceOutputVariables($instructions, $previousOutput, $allPreviousOutputs, $originalInput);
+                }
+
+                $stateToEvaluate = $previousOutput ?? $originalInput;
+                if ($step->pass_all_previous_outputs && ! empty($allPreviousOutputs)) {
+                    $stateToEvaluate = $allPreviousOutputs;
+                }
+
+                $threshold = isset($decisionConfig['confidence_threshold'])
+                    ? (float) $decisionConfig['confidence_threshold']
+                    : 0.80;
+                $questionType = $decisionConfig['question_type'] ?? 'noul';
+                $criteria = $decisionConfig['criteria'] ?? null;
+                $modelOverride = $step->model ?: ($decisionConfig['model'] ?? null);
+                $providerOverride = $decisionConfig['provider_id'] ?? null;
+
+                $decisionService = app(DecisionModelService::class);
+                $result = $decisionService->evaluate(
+                    state: $stateToEvaluate,
+                    instructions: $instructions,
+                    threshold: $threshold,
+                    providerIdentifier: $providerOverride,
+                    modelIdentifier: $modelOverride,
+                    questionType: $questionType,
+                    criteria: $criteria,
+                    user: $run->user,
+                    projectId: $run->pipeline?->project_id
+                );
+
+                $output = json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+
+                $stepRun->update([
+                    'status' => 'completed',
+                    'input' => is_string($stateToEvaluate) ? $stateToEvaluate : json_encode($stateToEvaluate),
+                    'output' => $output,
+                    'completed_at' => now(),
+                ]);
+
+                app()->instance('last_decision_result', $result);
 
                 return $output;
             }
@@ -1014,9 +1086,11 @@ class PipelineRunnerService
 
         if (! empty($step->selected_outputs) && $previousStepRuns) {
             $selectedContext = '';
+            $minOrder = $step->pipeline?->steps?->min('order') ?? 0;
             foreach ($previousStepRuns as $psr) {
                 if (in_array($psr->order, $step->selected_outputs)) {
-                    $stepLabel = 'STEP '.($psr->order + 1);
+                    $stepNum = ($minOrder === 1) ? $psr->order : ($psr->order + 1);
+                    $stepLabel = 'STEP '.$stepNum;
                     $selectedContext .= "[OUTPUT {$stepLabel}]{$psr->output}[/OUTPUT {$stepLabel}]\n\n";
                 }
             }
@@ -1215,12 +1289,28 @@ class PipelineRunnerService
 
         // Handle exact match for non-string values: e.g. parameter value is exactly "{field}"
         if (preg_match('/^{([a-zA-Z0-9_.\-\ ]+)}$/', $value, $matches)) {
-            return data_get($outputData, trim($matches[1]), $value);
+            $key = trim($matches[1]);
+            if (isset($outputData['_'.$key])) {
+                return $outputData['_'.$key];
+            }
+
+            if (preg_match('/^(\d+)\.(.+)$/', $key, $subMatches)) {
+                $val = data_get($outputData, "_{$subMatches[1]}.{$subMatches[2]}");
+                if ($val !== null) {
+                    return $val;
+                }
+            }
+
+            return data_get($outputData, $key, $value);
         }
 
         // Handle multiple placeholders in a string
         return preg_replace_callback('/{([a-zA-Z0-9_.\-\ ]+)}/', function ($matches) use ($outputData, $value) {
-            $val = data_get($outputData, trim($matches[1]));
+            $key = trim($matches[1]);
+            $val = data_get($outputData, $key);
+            if ($val === null && preg_match('/^(\d+)\.(.+)$/', $key, $subMatches)) {
+                $val = data_get($outputData, "_{$subMatches[1]}.{$subMatches[2]}");
+            }
             if ($val === null) {
                 return $matches[0];
             }

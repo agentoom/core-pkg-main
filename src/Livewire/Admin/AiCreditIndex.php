@@ -29,6 +29,7 @@ class AiCreditIndex extends Component
     public $totalTokensFiltered = 0;
 
     public $totalCostFiltered = 0.0;
+
     public $unpricedCount = 0;
 
     public $providerCostFiltered = 0.0;
@@ -181,7 +182,7 @@ class AiCreditIndex extends Component
         $start = Carbon::parse($this->dateFrom);
         $end = Carbon::parse($this->dateTo);
 
-        for ($date = $start->copy(); $date->lte($end); $date->addDay()) {
+        for ($date = $start->copy(); $date->lte($end); $date = $date->addDay()) {
             $dateString = $date->format('Y-m-d');
             $this->chartData[] = [
                 'date' => $dateString,

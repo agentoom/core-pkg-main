@@ -26,6 +26,7 @@ class ProjectExpensesIndex extends Component
     public $totalCostFiltered = 0.0;
 
     public $totalRequests = 0;
+
     public $unpricedCount = 0;
 
     public $chartData = [];
@@ -104,7 +105,7 @@ class ProjectExpensesIndex extends Component
         $start = Carbon::parse($this->dateFrom);
         $end = Carbon::parse($this->dateTo);
 
-        for ($date = $start->copy(); $date->lte($end); $date->addDay()) {
+        for ($date = $start->copy(); $date->lte($end); $date = $date->addDay()) {
             $dateString = $date->format('Y-m-d');
             $this->chartData[] = [
                 'date' => $dateString,

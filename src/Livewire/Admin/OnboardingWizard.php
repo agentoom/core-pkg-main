@@ -41,6 +41,8 @@ class OnboardingWizard extends Component
 
     public string $transcriptionModel = '';
 
+    public string $decisionModel = '';
+
     // Step 4: Credits & notifications
     public bool $creditsConfigured = false;
 
@@ -107,6 +109,7 @@ class OnboardingWizard extends Component
         }
 
         $this->transcriptionModel = (string) Configuration::getValue('ai_transcription_model', '');
+        $this->decisionModel = (string) Configuration::getValue('ai_decision_model', '');
 
         $savedCreditThreshold = Configuration::getValue('low_credit_threshold', null);
         $savedNotificationEmails = Configuration::getValue('credit_limit_notification_emails', null);
@@ -328,12 +331,20 @@ class OnboardingWizard extends Component
                 'nullable',
                 Rule::exists('provider_models', 'id')->where('provider_id', $this->providerId),
             ],
+            'decisionModel' => [
+                'nullable',
+                Rule::exists('provider_models', 'id')->where('provider_id', $this->providerId),
+            ],
         ]);
 
-        $this->validate($rules, $messages);
+        if (! empty($rules)) {
+            $this->validate($rules, $messages);
+        }
 
         Configuration::setValue('ai_transcription_provider', $this->providerName);
         Configuration::setValue('ai_transcription_model', $this->transcriptionModel);
+        Configuration::setValue('ai_decision_provider', $this->providerName);
+        Configuration::setValue('ai_decision_model', $this->decisionModel);
 
         foreach ($this->agentModels as $agentId => $modelId) {
             $agent = Agent::find($agentId);
@@ -595,6 +606,34 @@ class OnboardingWizard extends Component
     }
 
     /**
+     * Get decision-capable models for the provider.
+     * Matches decisions output modality and decision model naming,
+     * falling back to all synced models if none specifically match.
+     *
+     * @return Collection
+     */
+    public function getDecisionModels()
+    {
+        if (! $this->providerId) {
+            return collect();
+        }
+
+        $decisionModels = ProviderModel::query()
+            ->where('provider_id', $this->providerId)
+            ->where('is_active', true)
+            ->where(function ($query) {
+                $query->where('model_features->architecture->output_modalities', 'like', '%"decisions"%')
+                    ->orWhere('model_name', 'like', '%jev%')
+                    ->orWhere('model_name', 'like', '%decid%')
+                    ->orWhere('model_name', 'like', '%classify%');
+            })
+            ->orderBy('model_name')
+            ->get();
+
+        return $decisionModels->isNotEmpty() ? $decisionModels : $this->getSyncedModels();
+    }
+
+    /**
      * Build a summary of the onboarding configuration for the review step.
      *
      * @return array<int, array{label: string, value: string, status: string}>
@@ -632,6 +671,12 @@ class OnboardingWizard extends Component
             'label' => __('agentoom-core::admin.configs.transcription_model'),
             'value' => $this->transcriptionModel ? $this->getModelNameById($this->transcriptionModel) : __('agentoom-core::admin.onboarding.not_set'),
             'status' => $this->transcriptionModel ? 'configured' : 'skipped',
+        ];
+
+        $summary[] = [
+            'label' => __('agentoom-core::admin.configs.decision_model'),
+            'value' => $this->decisionModel ? $this->getModelNameById($this->decisionModel) : __('agentoom-core::admin.onboarding.not_set'),
+            'status' => $this->decisionModel ? 'configured' : 'skipped',
         ];
 
         // Other agents
@@ -698,6 +743,7 @@ class OnboardingWizard extends Component
             'providerOptions' => $this->getProviderOptions(),
             'syncedModels' => $this->getSyncedModels(),
             'transcriptionModels' => $this->getTranscriptionModels(),
+            'decisionModels' => $this->getDecisionModels(),
             'summary' => $this->getSummary(),
             'stepsList' => $this->steps(),
             'systemAgents' => Agent::where('system_agent', true)->whereNull('project_id')->get(),

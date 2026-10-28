@@ -58,6 +58,18 @@ class EndpointCreateEdit extends Component
 
     public string $direct_response_content_type = 'application/json';
 
+    public bool $decision_filter_enabled = false;
+
+    public ?string $decision_filter_provider = null;
+
+    public ?string $decision_filter_model = null;
+
+    public string $decision_filter_instructions = '';
+
+    public float $decision_filter_threshold = 0.80;
+
+    public string $decision_filter_reject_action = 'skip_200';
+
     protected $listeners = ['json-structure-updated' => 'updateDataStructure'];
 
     public function mount(?Endpoint $endpoint = null): void
@@ -84,6 +96,12 @@ class EndpointCreateEdit extends Component
             $this->direct_response_body = $endpoint->direct_response_body ?? '';
             $this->direct_response_code = (int) ($endpoint->direct_response_code ?: 200);
             $this->direct_response_content_type = $endpoint->direct_response_content_type ?: 'application/json';
+            $this->decision_filter_enabled = (bool) ($endpoint->decision_filter_enabled ?? false);
+            $this->decision_filter_provider = $endpoint->decision_filter_provider ?? null;
+            $this->decision_filter_model = $endpoint->decision_filter_model ?? null;
+            $this->decision_filter_instructions = $endpoint->decision_filter_instructions ?? '';
+            $this->decision_filter_threshold = (float) ($endpoint->decision_filter_threshold ?? 0.80);
+            $this->decision_filter_reject_action = $endpoint->decision_filter_reject_action ?: 'skip_200';
         } else {
             $this->endpoint = new Endpoint;
             $this->is_editing = false;
@@ -135,6 +153,12 @@ class EndpointCreateEdit extends Component
             'direct_response_body' => 'nullable|string',
             'direct_response_code' => 'nullable|integer|min:100|max:599',
             'direct_response_content_type' => 'nullable|string|max:255',
+            'decision_filter_enabled' => 'boolean',
+            'decision_filter_provider' => 'nullable|string|max:100',
+            'decision_filter_model' => 'nullable|string|max:255',
+            'decision_filter_instructions' => 'nullable|string',
+            'decision_filter_threshold' => 'nullable|numeric|min:0|max:1',
+            'decision_filter_reject_action' => 'nullable|string|max:50',
         ]);
 
         $data = [
@@ -157,6 +181,12 @@ class EndpointCreateEdit extends Component
             'direct_response_body' => $this->direct_response_enabled ? $this->direct_response_body : null,
             'direct_response_code' => $this->direct_response_enabled ? $this->direct_response_code : null,
             'direct_response_content_type' => $this->direct_response_enabled ? $this->direct_response_content_type : null,
+            'decision_filter_enabled' => $this->decision_filter_enabled,
+            'decision_filter_provider' => $this->decision_filter_enabled ? $this->decision_filter_provider : null,
+            'decision_filter_model' => $this->decision_filter_enabled ? $this->decision_filter_model : null,
+            'decision_filter_instructions' => $this->decision_filter_enabled ? $this->decision_filter_instructions : null,
+            'decision_filter_threshold' => $this->decision_filter_enabled ? $this->decision_filter_threshold : 0.80,
+            'decision_filter_reject_action' => $this->decision_filter_enabled ? $this->decision_filter_reject_action : 'skip_200',
         ];
 
         if ($this->is_editing) {
@@ -214,11 +244,32 @@ class EndpointCreateEdit extends Component
             ->get();
 
         $projects = Project::orderBy('name')->get();
+        $providers = \Agentoom\Core\Models\Provider::all()->pluck('name', 'id');
+
+        $defaultDecisionConfig = \Agentoom\Core\Services\InjectCurrentAiConfigService::getDecisionConfig();
+        $providerName = $this->decision_filter_provider ?: ($defaultDecisionConfig['provider'] ?? null);
+
+        $query = \Agentoom\Core\Models\ProviderModel::query()->where('is_active', true);
+        if ($providerName) {
+            $query->whereHas('provider', fn ($q) => is_numeric($providerName) ? $q->where('id', $providerName) : $q->where('name', $providerName));
+        }
+
+        $decisionModels = (clone $query)->where(function ($q) {
+            $q->where('model_features->architecture->output_modalities', 'like', '%"decisions"%')
+                ->orWhere('model_name', 'like', '%jev%')
+                ->orWhere('model_name', 'like', '%decid%')
+                ->orWhere('model_name', 'like', '%classify%');
+        })->get();
+        if ($decisionModels->isEmpty()) {
+            $decisionModels = $query->get();
+        }
 
         return view('agentoom-core::livewire.admin.endpoint-create-edit', [
             'agents' => $agents,
             'pipelines' => $pipelines,
             'projects' => $projects,
+            'providers' => $providers,
+            'decisionModels' => $decisionModels,
         ])->layout('agentoom-core::layouts.admin');
     }
 }
